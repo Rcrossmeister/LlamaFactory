@@ -105,6 +105,7 @@ def _training_function(config: dict[str, Any]) -> None:
             model_args, data_args, training_args, finetuning_args, generating_args, callbacks,
             focal_gamma=getattr(finetuning_args, 'focal_gamma', 2.0),
             no_error_weight=getattr(finetuning_args, 'no_error_weight', 0.1),
+            error_token_weight=getattr(finetuning_args, 'error_token_weight', 1.0),
             use_error_token_mask=getattr(finetuning_args, 'use_error_token_mask', True),
             freeze_original_embeddings=getattr(finetuning_args, 'freeze_original_embeddings', True),
             initialize_embeddings=getattr(finetuning_args, 'initialize_embeddings', False),

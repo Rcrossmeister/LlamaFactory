@@ -539,6 +539,10 @@ class FinetuningArguments(
         default=0.1,
         metadata={"help": "Weight for <no_error> class in focal loss. Lower values down-weight the dominant class."},
     )
+    error_token_weight: float = field(
+        default=1.0,
+        metadata={"help": "Weight for error tokens <error_1> to <error_31> in focal loss. Higher values focus more on errors."},
+    )
     use_error_token_mask: bool = field(
         default=True,
         metadata={"help": "Whether to compute loss only on error token positions for SQL error detection."},

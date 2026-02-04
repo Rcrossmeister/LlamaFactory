@@ -74,6 +74,7 @@ class FocalLoss:
         gamma: Focusing parameter that increases focus on hard samples. Default: 2.0
         alpha: Class weights tensor of shape [vocab_size]. If None, no class weighting.
         no_error_weight: Weight for <no_error> token. Default: 0.1 (down-weight dominant class)
+        error_token_weight: Weight for error tokens <error_1> to <error_31>. Default: 1.0
     """
     
     def __init__(
@@ -84,18 +85,31 @@ class FocalLoss:
         error_token_ids: Optional[set] = None,
         no_error_id: Optional[int] = None,
         vocab_size: Optional[int] = None,
+        error_token_weight: float = 1.0,
     ):
         self.gamma = gamma
         self.no_error_weight = no_error_weight
-        self.error_token_ids = error_token_ids
+        self.error_token_ids = error_token_ids or set()
         self.no_error_id = no_error_id
+        self.error_token_weight = error_token_weight
         
         if alpha is not None:
             self.alpha = alpha
-        elif vocab_size is not None and no_error_id is not None:
-            # Create default class weights
+        elif vocab_size is not None and error_token_ids is not None:
+            # Create class weights - ONLY for error tokens
+            # Regular text tokens will have weight 1.0 (neutral)
+            # <no_error> tokens will be down-weighted
+            # Other error tokens will have normal or up-weighted
             self.alpha = torch.ones(vocab_size)
-            self.alpha[no_error_id] = no_error_weight
+            
+            # Down-weight <no_error> (dominant class)
+            if no_error_id is not None:
+                self.alpha[no_error_id] = no_error_weight
+            
+            # Set weight for other error tokens (can be up-weighted to focus more on errors)
+            for token_id in error_token_ids:
+                if token_id != no_error_id:
+                    self.alpha[token_id] = error_token_weight
         else:
             self.alpha = None
     
@@ -124,8 +138,12 @@ class FocalLoss:
             if mask is not None:
                 mask = mask.view(-1)
         
-        # Compute cross entropy loss (per element)
-        ce_loss = F.cross_entropy(logits, labels, reduction='none')
+        # Create valid mask for loss computation (exclude IGNORE_INDEX)
+        valid_mask = labels != IGNORE_INDEX
+        
+        # Compute cross entropy loss (per element) only on valid positions
+        # Use ignore_index to avoid computing loss on padding
+        ce_loss = F.cross_entropy(logits, labels, reduction='none', ignore_index=IGNORE_INDEX)
         
         # Compute pt (probability of true class)
         pt = torch.exp(-ce_loss)
@@ -136,11 +154,24 @@ class FocalLoss:
         # Apply focal weight
         focal_loss = focal_weight * ce_loss
         
-        # Apply class weights if available
-        if self.alpha is not None:
+        # Apply class weights ONLY to error token positions
+        # This is the key fix - we don't apply alpha to regular text tokens
+        if self.alpha is not None and self.error_token_ids:
             alpha = self.alpha.to(logits.device)
-            alpha_t = alpha[labels]
-            focal_loss = alpha_t * focal_loss
+            
+            # Create a mask for positions where label is an error token
+            error_token_mask = torch.zeros_like(labels, dtype=torch.bool)
+            for token_id in self.error_token_ids:
+                error_token_mask = error_token_mask | (labels == token_id)
+            
+            # Apply alpha weights only to error token positions
+            # Clamp labels to valid range before indexing (handle IGNORE_INDEX=-100)
+            safe_labels = labels.clamp(min=0)
+            alpha_t = alpha[safe_labels]
+            
+            # Only apply alpha to error token positions, others keep weight 1.0
+            alpha_weights = torch.where(error_token_mask, alpha_t, torch.ones_like(alpha_t))
+            focal_loss = alpha_weights * focal_loss
         
         # Apply mask if provided
         if mask is not None:
@@ -178,6 +209,7 @@ class SQLErrorDetectionTrainer(Seq2SeqTrainer):
         original_vocab_size: Optional[int] = None,
         focal_gamma: float = 2.0,
         no_error_weight: float = 0.1,
+        error_token_weight: float = 1.0,
         use_error_token_mask: bool = True,
         **kwargs,
     ) -> None:
@@ -194,6 +226,7 @@ class SQLErrorDetectionTrainer(Seq2SeqTrainer):
             original_vocab_size: Original vocabulary size before adding error tokens
             focal_gamma: Focal loss gamma parameter
             no_error_weight: Weight for <no_error> class in focal loss
+            error_token_weight: Weight for error tokens <error_1> to <error_31> (default: 1.0)
             use_error_token_mask: Whether to only compute loss on error token positions
         """
         kwargs["processing_class"] = kwargs.pop("tokenizer")
@@ -223,11 +256,13 @@ class SQLErrorDetectionTrainer(Seq2SeqTrainer):
             error_token_ids=error_token_ids,
             no_error_id=no_error_id,
             vocab_size=vocab_size,
+            error_token_weight=error_token_weight,
         )
         
         logger.info_rank0(f"SQL Error Detection Trainer initialized:")
         logger.info_rank0(f"  - Focal gamma: {focal_gamma}")
         logger.info_rank0(f"  - No error weight: {no_error_weight}")
+        logger.info_rank0(f"  - Error token weight: {error_token_weight}")
         logger.info_rank0(f"  - Use error token mask: {use_error_token_mask}")
         logger.info_rank0(f"  - Error token IDs: {len(self.error_token_ids)} tokens")
     
