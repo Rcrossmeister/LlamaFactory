@@ -457,7 +457,7 @@ class FinetuningArguments(
         default=False,
         metadata={"help": "Whether or not to train model in purely bf16 precision (without AMP)."},
     )
-    stage: Literal["pt", "sft", "rm", "ppo", "dpo", "kto"] = field(
+    stage: Literal["pt", "sft", "rm", "ppo", "dpo", "kto", "sql_error_detection"] = field(
         default="sft",
         metadata={"help": "Which stage will be performed in training."},
     )
@@ -529,6 +529,31 @@ class FinetuningArguments(
     include_effective_tokens_per_second: bool = field(
         default=False,
         metadata={"help": "Whether or not to compute effective tokens per second."},
+    )
+    # SQL Error Detection specific arguments
+    focal_gamma: float = field(
+        default=2.0,
+        metadata={"help": "Focal loss gamma parameter for SQL error detection. Higher values focus more on hard samples."},
+    )
+    no_error_weight: float = field(
+        default=0.1,
+        metadata={"help": "Weight for <no_error> class in focal loss. Lower values down-weight the dominant class."},
+    )
+    use_error_token_mask: bool = field(
+        default=True,
+        metadata={"help": "Whether to compute loss only on error token positions for SQL error detection."},
+    )
+    freeze_original_embeddings: bool = field(
+        default=True,
+        metadata={"help": "Whether to freeze original vocabulary embeddings when training SQL error detection."},
+    )
+    initialize_embeddings: bool = field(
+        default=False,
+        metadata={"help": "Whether to initialize error token embeddings with semantic averaging."},
+    )
+    use_constrained_decoding: bool = field(
+        default=True,
+        metadata={"help": "Whether to use constrained decoding during inference to force valid error tokens."},
     )
 
     def __post_init__(self):

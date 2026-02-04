@@ -34,6 +34,7 @@ from .ppo import run_ppo
 from .pt import run_pt
 from .rm import run_rm
 from .sft import run_sft
+from .sql_error_detection import run_sql_error_detection
 from .trainer_utils import (
     get_placement_group,
     get_ray_head_node_ip,
@@ -99,6 +100,16 @@ def _training_function(config: dict[str, Any]) -> None:
         run_dpo(model_args, data_args, training_args, finetuning_args, callbacks)
     elif finetuning_args.stage == "kto":
         run_kto(model_args, data_args, training_args, finetuning_args, callbacks)
+    elif finetuning_args.stage == "sql_error_detection":
+        run_sql_error_detection(
+            model_args, data_args, training_args, finetuning_args, generating_args, callbacks,
+            focal_gamma=getattr(finetuning_args, 'focal_gamma', 2.0),
+            no_error_weight=getattr(finetuning_args, 'no_error_weight', 0.1),
+            use_error_token_mask=getattr(finetuning_args, 'use_error_token_mask', True),
+            freeze_original_embeddings=getattr(finetuning_args, 'freeze_original_embeddings', True),
+            initialize_embeddings=getattr(finetuning_args, 'initialize_embeddings', False),
+            use_constrained_decoding=getattr(finetuning_args, 'use_constrained_decoding', True),
+        )
     else:
         raise ValueError(f"Unknown task: {finetuning_args.stage}.")
 
