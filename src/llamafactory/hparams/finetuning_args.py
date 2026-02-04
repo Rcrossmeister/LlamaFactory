@@ -543,6 +543,10 @@ class FinetuningArguments(
         default=1.0,
         metadata={"help": "Weight for error tokens <error_1> to <error_31> in focal loss. Higher values focus more on errors."},
     )
+    text_token_weight: float = field(
+        default=0.1,
+        metadata={"help": "Weight for regular text tokens (Node[X]:, commas, etc.) in focal loss. Lower values reduce text dominance."},
+    )
     use_error_token_mask: bool = field(
         default=True,
         metadata={"help": "Whether to compute loss only on error token positions for SQL error detection."},

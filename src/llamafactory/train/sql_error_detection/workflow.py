@@ -68,6 +68,7 @@ def run_sql_error_detection(
     focal_gamma: float = 2.0,
     no_error_weight: float = 0.1,
     error_token_weight: float = 1.0,
+    text_token_weight: float = 0.1,
     use_error_token_mask: bool = True,
     freeze_original_embeddings: bool = True,
     initialize_embeddings: bool = False,  # Set to False if using pre-extended model
@@ -209,6 +210,7 @@ def run_sql_error_detection(
         focal_gamma=focal_gamma,
         no_error_weight=no_error_weight,
         error_token_weight=error_token_weight,
+        text_token_weight=text_token_weight,
         use_error_token_mask=use_error_token_mask,
         **dataset_module,
         **tokenizer_module,
