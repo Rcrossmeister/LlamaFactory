@@ -457,7 +457,7 @@ class FinetuningArguments(
         default=False,
         metadata={"help": "Whether or not to train model in purely bf16 precision (without AMP)."},
     )
-    stage: Literal["pt", "sft", "rm", "ppo", "dpo", "kto", "sql_error_detection"] = field(
+    stage: Literal["pt", "sft", "rm", "ppo", "dpo", "kto", "sql_error_detection", "ast_error_detection"] = field(
         default="sft",
         metadata={"help": "Which stage will be performed in training."},
     )
@@ -532,8 +532,8 @@ class FinetuningArguments(
     )
     # SQL Error Detection specific arguments
     focal_gamma: float = field(
-        default=2.0,
-        metadata={"help": "Focal loss gamma parameter for SQL error detection. Higher values focus more on hard samples."},
+        default=0.0,
+        metadata={"help": "Focal loss gamma parameter (0 = standard CE loss, >0 = focal loss)."},
     )
     no_error_weight: float = field(
         default=0.1,
@@ -562,6 +562,10 @@ class FinetuningArguments(
     use_constrained_decoding: bool = field(
         default=True,
         metadata={"help": "Whether to use constrained decoding during inference to force valid error tokens."},
+    )
+    constraint_type: Literal["simple", "ordered"] = field(
+        default="simple",
+        metadata={"help": "Type of constrained decoding: 'simple' (only error tokens) or 'ordered' (ascending order, no duplicates)."},
     )
 
     def __post_init__(self):
