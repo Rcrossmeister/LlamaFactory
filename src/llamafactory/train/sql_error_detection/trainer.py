@@ -350,7 +350,7 @@ class SQLErrorDetectionTrainer(Seq2SeqTrainer):
             if len(pad_len):
                 preds[i] = np.concatenate((preds[i][pad_len[0]:], preds[i][:pad_len[0]]), axis=-1)
         
-        decoded_inputs = self.processing_class.batch_decode(dataset["input_ids"], skip_special_tokens=False)
+        decoded_inputs = [self.processing_class.decode(ids, skip_special_tokens=False) for ids in dataset["input_ids"]]
         decoded_preds = self.processing_class.batch_decode(preds, skip_special_tokens=skip_special_tokens)
         decoded_labels = self.processing_class.batch_decode(labels, skip_special_tokens=skip_special_tokens)
         
