@@ -249,7 +249,7 @@ def get_train_args(args: dict[str, Any] | list[str] | None = None) -> _TRAIN_CLS
         _set_transformers_logging()
 
     # Check arguments
-    if finetuning_args.stage not in ["sft", "sql_error_detection"]:
+    if finetuning_args.stage not in ["sft", "sql_error_detection", "ast_error_detection"]:
         if training_args.predict_with_generate:
             raise ValueError("`predict_with_generate` cannot be set as True except SFT or sql_error_detection.")
 
@@ -259,7 +259,7 @@ def get_train_args(args: dict[str, Any] | list[str] | None = None) -> _TRAIN_CLS
         if data_args.train_on_prompt or data_args.mask_history:
             raise ValueError("`train_on_prompt` or `mask_history` cannot be set as True except SFT.")
 
-    if finetuning_args.stage in ["sft", "sql_error_detection"] and training_args.do_predict and not training_args.predict_with_generate:
+    if finetuning_args.stage in ["sft", "sql_error_detection", "ast_error_detection"] and training_args.do_predict and not training_args.predict_with_generate:
         raise ValueError("Please enable `predict_with_generate` to save model predictions.")
 
     if finetuning_args.stage in ["rm", "ppo"] and training_args.load_best_model_at_end:
