@@ -175,6 +175,19 @@ class ASTErrorDetectionTrainer(Seq2SeqTrainer):
         for token_id in self.error_token_ids:
             error_token_mask = error_token_mask | (shift_labels == token_id)
         
+        # DEBUG: Log info about what we found (only occasionally to avoid spam)
+        if not hasattr(self, '_debug_step_counter'):
+            self._debug_step_counter = 0
+        self._debug_step_counter += 1
+        
+        if self._debug_step_counter <= 5 or self._debug_step_counter % 100 == 0:
+            # Find unique non-IGNORE_INDEX tokens in labels
+            valid_labels = shift_labels[shift_labels != IGNORE_INDEX]
+            unique_tokens = valid_labels.unique().tolist()
+            logger.info_rank0(f"[DEBUG step {self._debug_step_counter}] Error token IDs: {self.error_token_ids}")
+            logger.info_rank0(f"[DEBUG step {self._debug_step_counter}] Unique valid label tokens: {unique_tokens}")
+            logger.info_rank0(f"[DEBUG step {self._debug_step_counter}] Mask sum (error tokens found): {error_token_mask.sum().item()}")
+        
         # Flatten
         flat_logits = shift_logits.view(-1, shift_logits.size(-1))
         flat_labels = shift_labels.view(-1)
@@ -183,6 +196,7 @@ class ASTErrorDetectionTrainer(Seq2SeqTrainer):
         # Check if there are any error tokens
         if flat_mask.sum() == 0:
             # No error tokens in this batch - return zero loss
+            logger.warning_rank0(f"[DEBUG step {self._debug_step_counter}] NO ERROR TOKENS FOUND! Returning zero loss.")
             loss = torch.tensor(0.0, device=logits.device, requires_grad=True)
             if return_outputs:
                 outputs.loss = loss
@@ -273,14 +287,27 @@ class ASTErrorDetectionTrainer(Seq2SeqTrainer):
             self.processing_class.pad_token_id,
         )
         
+        # Debug: log raw predictions before processing
+        logger.info_rank0(f"[DEBUG] Raw predictions shape: {preds.shape}")
+        logger.info_rank0(f"[DEBUG] First 5 raw preds (first 10 tokens): {preds[:5, :10]}")
+        logger.info_rank0(f"[DEBUG] First 5 raw labels (first 10 tokens): {labels[:5, :10]}")
+        logger.info_rank0(f"[DEBUG] pad_token_id: {self.processing_class.pad_token_id}")
+        
         for i in range(len(preds)):
             pad_len = np.nonzero(preds[i] != self.processing_class.pad_token_id)[0]
             if len(pad_len):
                 preds[i] = np.concatenate((preds[i][pad_len[0]:], preds[i][:pad_len[0]]), axis=-1)
         
+        # Debug: log after rotation
+        logger.info_rank0(f"[DEBUG] After rotation - first 5 preds (first 10 tokens): {preds[:5, :10]}")
+        
         decoded_inputs = [self.processing_class.decode(ids, skip_special_tokens=False) for ids in dataset["input_ids"]]
         decoded_preds = self.processing_class.batch_decode(preds, skip_special_tokens=skip_special_tokens)
         decoded_labels = self.processing_class.batch_decode(labels, skip_special_tokens=skip_special_tokens)
+        
+        # Debug: log decoded results
+        logger.info_rank0(f"[DEBUG] First 5 decoded_preds: {decoded_preds[:5]}")
+        logger.info_rank0(f"[DEBUG] First 5 decoded_labels: {decoded_labels[:5]}")
         
         with open(output_prediction_file, "w", encoding="utf-8") as f:
             for text, pred, label in zip(decoded_inputs, decoded_preds, decoded_labels):
