@@ -323,21 +323,23 @@ def initialize_error_token_embeddings(
         error_tokens: List of error token strings
         original_vocab_size: Original vocabulary size before adding tokens
     """
-    # Semantic descriptions for error tokens
+    # Semantic descriptions for error tokens (13-token taxonomy)
+    # Based on training data definitions in ft_detect_llamafactory_ast_level-13.json
     ERROR_TOKEN_SEMANTICS = {
-        "<no_error>": "correct valid no error",
-        "<error_1>": "attribute mismatch wrong column",
-        "<error_2>": "attribute redundancy extra column",
+        "<no_error>": "correct valid no error SQL",
+        "<error_1>": "attribute mismatch wrong column select",
+        "<error_2>": "attribute redundancy extra unnecessary column",
         "<error_3>": "attribute missing absent column",
-        "<error_4>": "table mismatch wrong table",
-        "<error_5>": "table redundancy extra table",
-        "<error_6>": "table missing absent",
-        "<error_7>": "join condition mismatch",
-        "<error_8>": "join type mismatch",
-        "<error_9>": "value mismatch wrong literal",
-        "<error_10>": "data format mismatch type",
-        "<error_11>": "comparison operator error",
-        "<error_12>": "logical operator error",
+        "<error_4>": "table mismatch wrong table from",
+        "<error_5>": "table redundancy unnecessary extra table",
+        "<error_6>": "table missing absent from",
+        "<error_7>": "value mismatch wrong literal data format condition",
+        "<error_8>": "condition missing implicit explicit where",
+        "<error_9>": "condition error wrong redundant where",
+        "<error_10>": "function error aggregate datetime string conditional",
+        "<error_11>": "clause error group by order missing redundant",
+        "<error_12>": "distinct error omitted incorrectly applied",
+        # Legacy tokens (for backward compatibility with 32-token models)
         "<error_13>": "explicit condition missing",
         "<error_14>": "explicit condition mismatch",
         "<error_15>": "explicit condition redundancy",
