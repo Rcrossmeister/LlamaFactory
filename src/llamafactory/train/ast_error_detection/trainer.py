@@ -149,9 +149,9 @@ class ASTErrorDetectionTrainer(Seq2SeqTrainer):
     @override
     def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):
         """
-        Compute loss for AST-level error detection.
+        Compute loss ONLY on error token positions.
         
-        Uses standard cross-entropy by default, or focal loss if focal_gamma > 0.
+        This excludes EOS and all other tokens - ONLY error tokens contribute to loss.
         """
         # Forward pass
         outputs = model(**inputs)
@@ -169,17 +169,38 @@ class ASTErrorDetectionTrainer(Seq2SeqTrainer):
         shift_logits = logits[..., :-1, :].contiguous()
         shift_labels = labels[..., 1:].contiguous()
         
-        # Compute loss
+        # Create mask for ERROR TOKENS ONLY (exclude EOS, exclude IGNORE_INDEX)
+        # Error tokens are in self.error_token_ids
+        error_token_mask = torch.zeros_like(shift_labels, dtype=torch.bool)
+        for token_id in self.error_token_ids:
+            error_token_mask = error_token_mask | (shift_labels == token_id)
+        
+        # Flatten
+        flat_logits = shift_logits.view(-1, shift_logits.size(-1))
+        flat_labels = shift_labels.view(-1)
+        flat_mask = error_token_mask.view(-1)
+        
+        # Check if there are any error tokens
+        if flat_mask.sum() == 0:
+            # No error tokens in this batch - return zero loss
+            loss = torch.tensor(0.0, device=logits.device, requires_grad=True)
+            if return_outputs:
+                outputs.loss = loss
+                return loss, outputs
+            return loss
+        
+        # Compute loss ONLY on error token positions
         if self.focal_gamma > 0:
-            # Focal Loss: FL(p_t) = -(1 - p_t)^gamma * log(p_t)
-            loss = self._compute_focal_loss(shift_logits, shift_labels)
+            # Focal Loss on error tokens only
+            ce_loss = F.cross_entropy(flat_logits, flat_labels, reduction='none', ignore_index=IGNORE_INDEX)
+            pt = torch.exp(-ce_loss)
+            focal_weight = (1 - pt) ** self.focal_gamma
+            focal_loss = focal_weight * ce_loss
+            loss = (focal_loss * flat_mask.float()).sum() / flat_mask.sum()
         else:
-            # Standard cross-entropy loss
-            loss = F.cross_entropy(
-                shift_logits.view(-1, shift_logits.size(-1)),
-                shift_labels.view(-1),
-                ignore_index=IGNORE_INDEX,
-            )
+            # Standard CE on error tokens only
+            ce_loss = F.cross_entropy(flat_logits, flat_labels, reduction='none', ignore_index=IGNORE_INDEX)
+            loss = (ce_loss * flat_mask.float()).sum() / flat_mask.sum()
         
         if return_outputs:
             outputs.loss = loss
